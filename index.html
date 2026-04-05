@@ -293,21 +293,31 @@
                 showMessage('正在请求麦克风权限...', 'info', 0);
                 
                 try {
-                    // 确保音频上下文处于活动状态
-                    if (audioContext && audioContext.state === 'suspended') {
-                        audioContext.resume();
-                    }
-                    
-                    recognition.start();
-                    isListening = true;
-                    listenButton.textContent = '监听中…';
-                    listenButton.classList.add('listening');
-                    requestWakeLock();
-                    
-                    // 权限请求成功后隐藏消息
-                    setTimeout(() => {
-                        showMessage('监听已启动', 'success', 2000);
-                    }, 1000);
+                    // 直接请求麦克风权限
+                    navigator.mediaDevices.getUserMedia({ audio: true })
+                        .then(stream => {
+                            console.log('麦克风权限获取成功');
+                            // 确保音频上下文处于活动状态
+                            if (audioContext && audioContext.state === 'suspended') {
+                                audioContext.resume();
+                            }
+                            
+                            recognition.start();
+                            isListening = true;
+                            listenButton.textContent = '监听中…';
+                            listenButton.classList.add('listening');
+                            requestWakeLock();
+                            
+                            // 权限请求成功后隐藏消息
+                            setTimeout(() => {
+                                showMessage('监听已启动', 'success', 2000);
+                            }, 1000);
+                        })
+                        .catch(error => {
+                            console.error('获取麦克风权限失败:', error);
+                            showMessage('无法获取麦克风权限，请在浏览器设置中允许访问', 'error', 5000);
+                            stopListening();
+                        });
                 } catch (error) {
                     console.error('启动语音识别失败:', error);
                     showMessage('启动失败，请检查浏览器权限设置', 'error', 5000);
