@@ -255,6 +255,9 @@
                                     showMessage('麦克风权限已被拒绝，请在浏览器设置中允许访问', 'error', 5000);
                                 } else if (permissionStatus.state === 'prompt') {
                                     showMessage('请允许麦克风权限请求', 'info', 3000);
+                                } else if (permissionStatus.state === 'granted') {
+                                    // 权限已授予但仍出错，可能是其他原因
+                                    showMessage('权限已授予，但启动语音识别失败，请重试', 'error', 3000);
                                 } else {
                                     showMessage('权限错误: ' + (permissionStatus.state || '未知状态') + '，请重试', 'error', 3000);
                                 }
