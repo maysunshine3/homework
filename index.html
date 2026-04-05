@@ -267,11 +267,15 @@
                         navigator.mediaDevices.getUserMedia({ audio: true })
                             .then(stream => {
                                 console.log('音频流获取成功，说明麦克风权限已授予');
+                                console.log('音频轨道状态:', stream.getAudioTracks()[0].readyState);
+                                console.log('浏览器信息:', navigator.userAgent);
+                                console.log('页面URL:', window.location.href);
                                 console.log('语音识别被拒绝可能是由于：');
                                 console.log('1. 浏览器安全策略阻止');
                                 console.log('2. 网络连接问题');
                                 console.log('3. 语音识别服务不可用');
-                                showMessage('语音识别被拒绝，但麦克风权限已授予。可能的原因：1. 浏览器安全策略 2. 网络连接 3. 语音识别服务', 'error', 8000);
+                                console.log('4. 浏览器对Web Speech API支持有限');
+                                showMessage('语音识别被拒绝，但麦克风权限已授予。可能的原因：1. 浏览器安全策略 2. 网络连接 3. 语音识别服务 4. 浏览器兼容性', 'error', 10000);
                                 // 关闭音频流
                                 stream.getTracks().forEach(track => track.stop());
                             })
