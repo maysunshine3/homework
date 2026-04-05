@@ -256,7 +256,7 @@
                                 } else if (permissionStatus.state === 'prompt') {
                                     showMessage('请允许麦克风权限请求', 'info', 3000);
                                 } else {
-                                    showMessage('权限错误: ' + permissionStatus.state + '，请重试', 'error', 3000);
+                                    showMessage('权限错误: ' + (permissionStatus.state || '未知状态') + '，请重试', 'error', 3000);
                                 }
                             })
                             .catch(err => {
