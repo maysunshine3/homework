@@ -262,34 +262,46 @@
                 
                 recognition.onerror = (event) => {
                     if (event.error === 'not-allowed') {
-                        console.log('语音识别被拒绝，检查麦克风权限');
-                        // 检查权限状态
-                        if ('permissions' in navigator) {
-                            navigator.permissions.query({name: 'microphone'})
-                                .then(permissionStatus => {
-                                    console.log('麦克风权限状态:', permissionStatus.state);
-                                    if (permissionStatus.state === 'denied') {
-                                        showMessage('麦克风权限已被拒绝，请在浏览器设置中允许访问', 'error', 5000);
-                                    } else if (permissionStatus.state === 'prompt') {
-                                        showMessage('请允许麦克风权限请求', 'info', 3000);
-                                    } else if (permissionStatus.state === 'granted') {
-                                        // 权限已授予但仍出错，可能是其他原因
-                                        console.log('权限已授予但语音识别仍被拒绝，可能是浏览器安全策略');
-                                        showMessage('权限已授予，但浏览器阻止了语音识别，请检查浏览器设置', 'error', 5000);
-                                    } else {
-                                        showMessage('权限错误: ' + (permissionStatus.state || '未知状态') + '，请重试', 'error', 3000);
-                                    }
-                                })
-                                .catch(err => {
-                                    console.error('权限检查失败:', err);
-                                    showMessage('权限检查失败: ' + (err.message || err), 'error', 3000);
-                                });
-                        } else {
-                            // 浏览器不支持permissions API
-                            console.log('浏览器不支持permissions API');
-                            showMessage('麦克风权限错误，请在浏览器设置中检查', 'error', 5000);
-                        }
-                        stopListening();
+                        console.log('语音识别被拒绝，尝试分析具体原因...');
+                        // 尝试获取音频流，分析具体错误原因
+                        navigator.mediaDevices.getUserMedia({ audio: true })
+                            .then(stream => {
+                                console.log('音频流获取成功，说明麦克风权限已授予');
+                                console.log('语音识别被拒绝可能是由于：');
+                                console.log('1. 浏览器安全策略阻止');
+                                console.log('2. 网络连接问题');
+                                console.log('3. 语音识别服务不可用');
+                                showMessage('语音识别被拒绝，但麦克风权限已授予。可能的原因：1. 浏览器安全策略 2. 网络连接 3. 语音识别服务', 'error', 8000);
+                                // 关闭音频流
+                                stream.getTracks().forEach(track => track.stop());
+                            })
+                            .catch(error => {
+                                console.log('获取音频流失败，错误信息：', error);
+                                console.log('错误名称：', error.name);
+                                console.log('错误消息：', error.message);
+                                
+                                let errorMessage = '语音识别被拒绝，原因：';
+                                if (error.name === 'NotAllowedError') {
+                                    errorMessage += '麦克风权限被拒绝，请在浏览器设置中允许访问';
+                                } else if (error.name === 'NotFoundError') {
+                                    errorMessage += '未找到麦克风设备';
+                                } else if (error.name === 'NotReadableError') {
+                                    errorMessage += '麦克风被其他应用占用';
+                                } else if (error.name === 'AbortError') {
+                                    errorMessage += '操作被中止';
+                                } else if (error.name === 'OverconstrainedError') {
+                                    errorMessage += '无法满足约束条件';
+                                } else if (error.name === 'SecurityError') {
+                                    errorMessage += '安全错误，可能是浏览器阻止了访问';
+                                } else {
+                                    errorMessage += error.message || error.name || '未知错误';
+                                }
+                                
+                                showMessage(errorMessage, 'error', 8000);
+                            })
+                            .finally(() => {
+                                stopListening();
+                            });
                     } else if (event.error === 'no-speech') {
                         console.log('未检测到语音');
                     } else if (event.error === 'network') {
