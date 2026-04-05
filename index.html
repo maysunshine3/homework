@@ -338,6 +338,12 @@
                                 navigator.mediaDevices.getUserMedia({ audio: true })
                                     .then(stream => {
                                         console.log('音频流获取成功');
+                                        console.log('音频轨道数量:', stream.getAudioTracks().length);
+                                        // 检查音频轨道状态
+                                        const audioTrack = stream.getAudioTracks()[0];
+                                        console.log('音频轨道状态:', audioTrack.readyState);
+                                        console.log('音频轨道标签:', audioTrack.label);
+                                        
                                         handleAudioStream(stream);
                                     })
                                     .catch(error => {
@@ -413,10 +419,23 @@
             recognition.continuous = true; // Edge浏览器可能更兼容
             recognition.interimResults = true;
             recognition.maxAlternatives = 1;
+            recognition.lang = 'zh-CN'; // 确保语言设置正确
+            
+            // 增加语音识别事件监听
+            recognition.onnomatch = () => {
+                console.log('语音识别无匹配结果');
+                showMessage('未识别到关键词，请再说一次', 'info', 2000);
+            };
             
             // 启动语音识别
             try {
                 console.log('尝试启动语音识别');
+                console.log('语音识别配置:', {
+                    continuous: recognition.continuous,
+                    interimResults: recognition.interimResults,
+                    maxAlternatives: recognition.maxAlternatives,
+                    lang: recognition.lang
+                });
                 recognition.start();
                 console.log('语音识别启动成功');
                 isListening = true;
@@ -426,7 +445,7 @@
                 
                 // 权限请求成功后隐藏消息
                 setTimeout(() => {
-                    showMessage('监听已启动', 'success', 2000);
+                    showMessage('监听已启动，请说"休息"或"训练"', 'success', 2000);
                 }, 1000);
             } catch (recogError) {
                 console.error('启动语音识别失败:', recogError);
