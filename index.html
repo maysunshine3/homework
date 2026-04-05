@@ -231,12 +231,23 @@
                         const transcript = event.results[i][0].transcript;
                         console.log('识别文本:', transcript, '是否最终结果:', event.results[i].isFinal);
                         
+                        // 显示识别结果，方便调试
+                        if (event.results[i].isFinal) {
+                            console.log('最终识别结果:', transcript);
+                            // 显示识别结果
+                            showMessage('识别结果: "' + transcript + '"', 'info', 2000);
+                        }
+                        
                         if (event.results[i].isFinal && !isCountingDown) {
                             console.log('处理最终识别结果:', transcript);
-                            if (transcript.includes('休息')) {
+                            // 增加容错，不区分大小写，去除空格
+                            const normalizedTranscript = transcript.toLowerCase().trim();
+                            console.log('标准化后的识别结果:', normalizedTranscript);
+                            
+                            if (normalizedTranscript.includes('休息')) {
                                 showMessage('检测到"休息"，开始倒计时', 'success', 1000);
                                 startCountdown(15, false);
-                            } else if (transcript.includes('训练')) {
+                            } else if (normalizedTranscript.includes('训练')) {
                                 showMessage('检测到"训练"，开始倒计时', 'success', 1000);
                                 startCountdown(30, true);
                             }
