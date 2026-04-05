@@ -282,7 +282,17 @@
                     if (isListening && !isCountingDown) {
                         try {
                             console.log('重新启动语音识别');
-                            recognition.start();
+                            // 短暂延迟后重新启动，避免频繁请求
+                            setTimeout(() => {
+                                try {
+                                    recognition.start();
+                                } catch (e) {
+                                    console.log('重新启动语音识别失败:', e);
+                                    isListening = false;
+                                    listenButton.textContent = '开启监听';
+                                    listenButton.classList.remove('listening');
+                                }
+                            }, 500);
                         } catch (e) {
                             console.log('重新启动语音识别失败:', e);
                             isListening = false;
@@ -302,71 +312,57 @@
             if (recognition && !isListening) {
                 showMessage('正在请求麦克风权限...', 'info', 0);
                 
-                try {
-                    // 先尝试直接启动语音识别（手机端可能更兼容）
-                    try {
-                        recognition.start();
-                        isListening = true;
-                        listenButton.textContent = '监听中…';
-                        listenButton.classList.add('listening');
-                        requestWakeLock();
+                // 简化策略：直接使用getUserMedia获取权限
+                navigator.mediaDevices.getUserMedia({ audio: true })
+                    .then(stream => {
+                        console.log('麦克风权限获取成功');
                         
-                        // 权限请求成功后隐藏消息
-                        setTimeout(() => {
-                            showMessage('监听已启动', 'success', 2000);
-                        }, 1000);
-                    } catch (recogError) {
-                        console.error('直接启动语音识别失败:', recogError);
-                        // 如果直接启动失败，尝试使用getUserMedia获取权限
-                        navigator.mediaDevices.getUserMedia({ audio: true })
-                            .then(stream => {
-                                console.log('麦克风权限获取成功');
-                                // 确保音频上下文处于活动状态
-                                if (audioContext && audioContext.state === 'suspended') {
-                                    audioContext.resume();
-                                }
-                                
-                                // 保存流引用，防止被垃圾回收
-                                window.audioStream = stream;
-                                
-                                // 再次尝试启动语音识别
-                                try {
-                                    recognition.start();
-                                    isListening = true;
-                                    listenButton.textContent = '监听中…';
-                                    listenButton.classList.add('listening');
-                                    requestWakeLock();
-                                    
-                                    // 权限请求成功后隐藏消息
-                                    setTimeout(() => {
-                                        showMessage('监听已启动', 'success', 2000);
-                                    }, 1000);
-                                } catch (secondRecogError) {
-                                    console.error('第二次启动语音识别失败:', secondRecogError);
-                                    showMessage('启动语音识别失败，请重试', 'error', 5000);
-                                    stopListening();
-                                    // 关闭流
-                                    stream.getTracks().forEach(track => track.stop());
-                                }
-                            })
-                            .catch(error => {
-                                console.error('获取麦克风权限失败:', error);
-                                if (error.name === 'NotAllowedError') {
-                                    showMessage('麦克风权限已被拒绝，请在浏览器设置中允许访问', 'error', 5000);
-                                } else if (error.name === 'NotFoundError') {
-                                    showMessage('未找到麦克风设备', 'error', 5000);
-                                } else if (error.name === 'NotReadableError') {
-                                    showMessage('麦克风被其他应用占用', 'error', 5000);
-                                } else {
-                                    showMessage('无法获取麦克风权限: ' + error.message, 'error', 5000);
-                                }
-                                stopListening();
-                            });
-                    }
-                } catch (error) {
-                    console.error('启动语音识别失败:', error);
-                    showMessage('启动失败，请检查浏览器权限设置', 'error', 5000);
-                }
+                        // 确保音频上下文处于活动状态
+                        initAudioContext();
+                        if (audioContext && audioContext.state === 'suspended') {
+                            audioContext.resume();
+                        }
+                        
+                        // 保存流引用，防止被垃圾回收
+                        window.audioStream = stream;
+                        
+                        // 配置语音识别
+                        recognition.continuous = false; // 手机端可能更兼容
+                        recognition.interimResults = true;
+                        
+                        // 启动语音识别
+                        try {
+                            recognition.start();
+                            isListening = true;
+                            listenButton.textContent = '监听中…';
+                            listenButton.classList.add('listening');
+                            requestWakeLock();
+                            
+                            // 权限请求成功后隐藏消息
+                            setTimeout(() => {
+                                showMessage('监听已启动', 'success', 2000);
+                            }, 1000);
+                        } catch (recogError) {
+                            console.error('启动语音识别失败:', recogError);
+                            showMessage('启动语音识别失败，请重试', 'error', 5000);
+                            stopListening();
+                            // 关闭流
+                            stream.getTracks().forEach(track => track.stop());
+                        }
+                    })
+                    .catch(error => {
+                        console.error('获取麦克风权限失败:', error);
+                        if (error.name === 'NotAllowedError') {
+                            showMessage('麦克风权限已被拒绝，请在浏览器设置中允许访问', 'error', 5000);
+                        } else if (error.name === 'NotFoundError') {
+                            showMessage('未找到麦克风设备', 'error', 5000);
+                        } else if (error.name === 'NotReadableError') {
+                            showMessage('麦克风被其他应用占用', 'error', 5000);
+                        } else {
+                            showMessage('无法获取麦克风权限: ' + error.message, 'error', 5000);
+                        }
+                        stopListening();
+                    });
             }
         }
 
