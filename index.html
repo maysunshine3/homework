@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>健身倒计时</title>
+    <!-- 引入vConsole -->
+    <script src="https://cdn.jsdelivr.net/npm/vconsole@3.15.1/dist/vconsole.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -79,6 +81,9 @@
     <div id="statusMessage"></div>
 
     <script>
+        // 初始化vConsole
+        const vConsole = new VConsole();
+        
         // 全局变量
         let recognition = null;
         let isListening = false;
