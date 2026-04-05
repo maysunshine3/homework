@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>健身倒计时</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            background-color: black;
+            color: white;
+            font-family: Arial, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+        #countdown {
+            font-size: 200px;
+            font-weight: bold;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            display: none;
+            z-index: 10;
+        }
+        #listenButton {
+            width: 200px;
+            height: 200px;
+            border-radius: 50%;
+            background-color: red;
+            color: white;
+            font-size: 24px;
+            border: none;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            z-index: 20;
+        }
+        #listenButton.listening {
+            background-color: green;
+        }
+        #listenButton:active {
+            transform: scale(0.95);
+        }
+        #statusMessage {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(255, 255, 255, 0.9);
+            color: black;
+            padding: 10px 20px;
+            border-radius: 5px;
+            font-size: 14px;
+            display: none;
+            z-index: 30;
+            text-align: center;
+        }
+        #statusMessage.error {
+            background-color: rgba(255, 0, 0, 0.9);
+            color: white;
+        }
+        #statusMessage.success {
+            background-color: rgba(0, 128, 0, 0.9);
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div id="countdown"></div>
+    <button id="listenButton">开启监听</button>
+    <div id="statusMessage"></div>
+
+    <script>
+        // 全局变量
+        let recognition = null;
+        let isListening = false;
+        let isCountingDown = false;
+        let wakeLock = null;
+        let audioContext = null;
+
+        // DOM元素
+        const listenButton = document.getElementById('listenButton');
+        const countdownElement = document.getElementById('countdown');
+        const statusMessage = document.getElementById('statusMessage');
+
+        // 显示状态消息
+        function showMessage(message, type = 'info', duration = 3000) {
+            statusMessage.textContent = message;
+            statusMessage.className = type;
+            statusMessage.style.display = 'block';
+            
+            if (duration > 0) {
+                setTimeout(() => {
+                    statusMessage.style.display = 'none';
+                }, duration);
+            }
+        }
+
+        // 初始化音频上下文
+        function initAudioContext() {
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                // 播放一段极短的无声音频，解除iOS Safari的自动播放限制
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                gainNode.gain.value = 0;
+                oscillator.start();
+                oscillator.stop(audioContext.currentTime + 0.01);
+            }
+        }
+
+        // 播放提示音
+        function playTone(frequency, duration) {
+            if (!audioContext) initAudioContext();
+            
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            
+            oscillator.frequency.value = frequency;
+            gainNode.gain.value = 0.5;
+            
+            oscillator.start(audioContext.currentTime);
+            oscillator.stop(audioContext.currentTime + duration / 1000);
+        }
+
+        // 播放开始休息提示音
+        function playRestStartSound() {
+            playTone(200, 100);
+            setTimeout(() => playTone(200, 100), 150);
+        }
+
+        // 播放休息结束提示音
+        function playRestEndSound() {
+            playTone(800, 50);
+            setTimeout(() => playTone(800, 50), 80);
+        }
+
+        // 播放开始训练提示音
+        function playTrainingStartSound() {
+            playTone(400, 100);
+            setTimeout(() => playTone(400, 100), 150);
+        }
+
+        // 开始倒计时
+        function startCountdown(seconds, isTraining = false) {
+            if (isCountingDown) return;
+            
+            isCountingDown = true;
+            countdownElement.textContent = seconds;
+            countdownElement.style.display = 'block';
+            
+            // 隐藏按钮
+            listenButton.style.display = 'none';
+            
+            // 暂时停止语音识别，避免自动停止后需要重新授权
+            if (recognition && isListening) {
+                recognition.stop();
+            }
+            
+            if (isTraining) {
+                playTrainingStartSound();
+            } else {
+                playRestStartSound();
+            }
+            
+            const interval = setInterval(() => {
+                seconds--;
+                countdownElement.textContent = seconds;
+                
+                if (seconds <= 0) {
+                    clearInterval(interval);
+                    countdownElement.style.display = 'none';
+                    isCountingDown = false;
+                    // 显示按钮
+                    listenButton.style.display = 'block';
+                    playRestEndSound();
+                    
+                    // 重新开始监听
+                    if (isListening && recognition) {
+                        try {
+                            recognition.start();
+                        } catch (e) {
+                            console.log('重新启动语音识别失败:', e);
+                        }
+                    }
+                }
+            }, 1000);
+        }
+
+        // 请求屏幕常亮
+        async function requestWakeLock() {
+            try {
+                wakeLock = await navigator.wakeLock.request('screen');
+            } catch (err) {
+                console.log('无法获取屏幕常亮:', err);
+            }
+        }
+
+        // 初始化语音识别
+        function initSpeechRecognition() {
+            if ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window) {
+                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                recognition = new SpeechRecognition();
+                
+                recognition.continuous = true;
+                recognition.interimResults = true;
+                recognition.lang = 'zh-CN';
+                
+                recognition.onresult = (event) => {
+                    showMessage('', 'info', 0);
+                    for (let i = event.resultIndex; i < event.results.length; i++) {
+                        if (event.results[i].isFinal) {
+                            const transcript = event.results[i][0].transcript;
+                            console.log('识别结果:', transcript);
+                            if (!isCountingDown) {
+                                if (transcript.includes('休息')) {
+                                    startCountdown(15, false);
+                                } else if (transcript.includes('训练')) {
+                                    startCountdown(30, true);
+                                }
+                            }
+                        }
+                    }
+                };
+                
+                recognition.onerror = (event) => {
+                    console.error('语音识别错误:', event.error);
+                    if (event.error === 'not-allowed') {
+                        alert('麦克风权限被拒绝。请在浏览器设置中允许麦克风访问，并确保在HTTPS环境下使用。');
+                        stopListening();
+                    } else if (event.error === 'no-speech') {
+                        console.log('未检测到语音');
+                    } else if (event.error === 'network') {
+                        alert('网络连接错误，请检查网络连接');
+                        stopListening();
+                    }
+                };
+                
+                recognition.onend = () => {
+                    if (isListening && !isCountingDown) {
+                        try {
+                            recognition.start();
+                        } catch (e) {
+                            console.log('重新启动语音识别失败:', e);
+                            isListening = false;
+                            listenButton.textContent = '开启监听';
+                            listenButton.classList.remove('listening');
+                        }
+                    }
+                };
+            } else {
+                alert('您的浏览器不支持语音识别功能。请使用Chrome、Safari或其他支持Web Speech API的浏览器。');
+            }
+        }
+
+        // 开始监听
+        function startListening() {
+            if (!recognition) initSpeechRecognition();
+            if (recognition && !isListening) {
+                showMessage('正在请求麦克风权限...', 'info', 0);
+                
+                try {
+                    recognition.start();
+                    isListening = true;
+                    listenButton.textContent = '监听中…';
+                    listenButton.classList.add('listening');
+                    requestWakeLock();
+                } catch (error) {
+                    console.error('启动语音识别失败:', error);
+                    showMessage('启动失败，请检查浏览器权限设置', 'error', 5000);
+                }
+            }
+        }
+
+        // 停止监听
+        function stopListening() {
+            if (recognition && isListening) {
+                isListening = false;
+                listenButton.textContent = '开启监听';
+                listenButton.classList.remove('listening');
+                recognition.stop();
+            }
+        }
+
+        // 按钮点击事件
+        listenButton.addEventListener('click', () => {
+            initAudioContext();
+            if (isListening) {
+                stopListening();
+            } else {
+                startListening();
+            }
+        });
+
+        // 页面可见性变化时处理
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden && isListening) {
+                recognition.stop();
+            } else if (!document.hidden && isListening) {
+                recognition.start();
+            }
+        });
+
+        // 页面加载时检查环境
+        window.addEventListener('load', () => {
+            if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.protocol !== 'file:') {
+                showMessage('警告：麦克风功能需要HTTPS环境，当前可能无法正常工作', 'error', 8000);
+            }
+            
+            if (!('SpeechRecognition' in window) && !('webkitSpeechRecognition' in window)) {
+                showMessage('您的浏览器不支持语音识别功能', 'error', 5000);
+            }
+        });
+    </script>
+</body>
+</html>
