@@ -221,7 +221,7 @@
                 
                 recognition.onstart = () => {
                     console.log('语音识别已开始');
-                    showMessage('正在监听语音...', 'info', 2000);
+                    // 移除频繁的提示，避免干扰
                 };
                 
                 recognition.onresult = (event) => {
@@ -399,12 +399,15 @@
             window.audioStream = stream;
             
             // 配置语音识别
-            recognition.continuous = false; // 手机端可能更兼容
+            recognition.continuous = true; // Edge浏览器可能更兼容
             recognition.interimResults = true;
+            recognition.maxAlternatives = 1;
             
             // 启动语音识别
             try {
+                console.log('尝试启动语音识别');
                 recognition.start();
+                console.log('语音识别启动成功');
                 isListening = true;
                 listenButton.textContent = '监听中…';
                 listenButton.classList.add('listening');
@@ -416,7 +419,9 @@
                 }, 1000);
             } catch (recogError) {
                 console.error('启动语音识别失败:', recogError);
-                showMessage('启动语音识别失败，请重试', 'error', 5000);
+                console.error('错误类型:', recogError.name);
+                console.error('错误消息:', recogError.message);
+                showMessage('启动语音识别失败: ' + (recogError.message || recogError), 'error', 5000);
                 stopListening();
                 // 关闭流
                 stream.getTracks().forEach(track => track.stop());
